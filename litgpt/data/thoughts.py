@@ -15,8 +15,8 @@ from litgpt.tokenizer import Tokenizer
 
 
 @dataclass
-class IndicInstruct(DataModule):
-    """IndicInstruct data module for supervised finetuning."""
+class ThoughtsAI(DataModule):
+    """ThoughtsAI data module for supervised finetuning."""
 
     mask_prompt: bool = False
     """Whether to mask the prompt section from the label (with ``ignore_index``)."""
@@ -32,11 +32,10 @@ class IndicInstruct(DataModule):
     """How many DataLoader processes to use for loading."""
     include_multiturn_conversations: bool = True
     """Whether to include multi-turn conversations in the dataset."""
-    repo_id: str = "ai4bharat/indic-instruct-data-v0.1"
+    repo_id: str = "BGLab/AgThoughts"
     """The Hugging Face dataset repository ID from where to download the data."""
     access_token: Optional[str] = field(repr=False, default=os.getenv("HF_TOKEN"))
-    """The Hugging Face API token to use for authentication. Can also be set through the
-    `HF_TOKEN` environment variable."""
+    """The Hugging Face API token to use for authentication."""
 
     tokenizer: Optional[Tokenizer] = field(default=None, init=False, repr=False)
     batch_size: int = field(default=1, init=False, repr=False)
@@ -50,7 +49,10 @@ class IndicInstruct(DataModule):
             self.prompt_style = PromptStyle.from_name(self.prompt_style)
 
     def connect(
-        self, tokenizer: Optional[Tokenizer] = None, batch_size: int = 1, max_seq_length: Optional[int] = None
+        self,
+        tokenizer: Optional[Tokenizer] = None,
+        batch_size: int = 1,
+        max_seq_length: Optional[int] = None,
     ) -> None:
         self.tokenizer = tokenizer
         self.batch_size = batch_size
@@ -58,16 +60,14 @@ class IndicInstruct(DataModule):
 
     def prepare_data(self) -> None:
         from datasets import load_dataset
-
-        load_dataset(self.repo_id, "anudesh", token=self.access_token)
+        load_dataset(self.repo_id, token=self.access_token)
 
     def setup(self, stage: str = "") -> None:
         from datasets import load_dataset
 
-        dataset = load_dataset(self.repo_id, "anudesh", token=self.access_token)
-        data = format_dataset(dataset["hi"], self.include_multiturn_conversations)
+        dataset = load_dataset(self.repo_id, token=self.access_token)
+        data = format_dataset_qa_cot(dataset["train"])
 
-        # Partition the dataset into train and test
         train_data, test_data = random_split(
             data,
             [1.0 - self.val_split_fraction, self.val_split_fraction],
@@ -83,6 +83,7 @@ class IndicInstruct(DataModule):
             mask_prompt=self.mask_prompt,
             ignore_index=self.ignore_index,
         )
+
         self.test_dataset = SFTDataset(
             data=test_data,
             tokenizer=self.tokenizer,
@@ -99,7 +100,10 @@ class IndicInstruct(DataModule):
             shuffle=True,
             generator=torch.Generator().manual_seed(self.seed),
             num_workers=self.num_workers,
-            collate_fn=get_sft_collate_fn(max_seq_length=self.max_seq_length, ignore_index=self.ignore_index),
+            collate_fn=get_sft_collate_fn(
+                max_seq_length=self.max_seq_length,
+                ignore_index=self.ignore_index,
+            ),
         )
 
     def val_dataloader(self) -> DataLoader:
@@ -108,22 +112,48 @@ class IndicInstruct(DataModule):
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
-            collate_fn=get_sft_collate_fn(max_seq_length=self.max_seq_length, ignore_index=self.ignore_index),
+            collate_fn=get_sft_collate_fn(
+                max_seq_length=self.max_seq_length,
+                ignore_index=self.ignore_index,
+            ),
         )
 
+from typing import List, Dict
 
-def format_dataset(dataset_partition: dict, include_multi_turn_conversations: bool) -> List[dict]:
+
+def format_dataset_qa_cot(dataset_partition: List[Dict]) -> List[Dict]:
     formatted_ds = []
 
+    # for entry in dataset_partition:
+    #     question = entry["Question"].strip()
+    #     reasoning = entry["Reasoning Traces"].strip()
+    #     answer = entry["Answer"].strip()
     for entry in dataset_partition:
-        convo = entry["messages"]
-        if include_multi_turn_conversations:
-            for i in range(0, len(convo) - 1, 2):
-                formatted_ds.append({"instruction": convo[i]['content'], "input": "", "output": convo[i + 1]['content']})
-        else:
-            formatted_ds.append({"instruction": convo[0]['content'], "input": "", "output": convo[1]['content']})
+        question = (entry.get("Question") or "").strip()
+        reasoning = (entry.get("Reasoning Traces") or "").strip()
+        answer = (entry.get("Answer") or "").strip()
+
+        # OPTIONAL: skip completely broken rows
+        if not question or not answer:
+            continue
+
+        output_text = (
+            "<unused0>"
+            f"{reasoning}"
+            "<unused1>\n\n"
+            f"{answer}"
+        )
+
+        formatted_ds.append({
+            "instruction": question,
+            "input": "",
+            "output": output_text,
+        })
 
     return formatted_ds
+
+
+
 
 def data_collator(self, batch):
     logger.debug(f"Collating batch of size {len(batch)}")
