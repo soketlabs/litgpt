@@ -65,6 +65,7 @@ class BaseLitAPI(LitAPI):
             quantize=self.quantize,
             precision=self.precision,
             generate_strategy=("sequential" if self.devices is not None and self.devices > 1 else None),
+            fixed_kv_cache_size=self.max_new_tokens + 2048,
         )
         print("Model successfully initialized.", file=sys.stderr)
 

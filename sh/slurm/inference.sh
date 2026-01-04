@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --job-name=agri-inf
+#SBATCH --job-name=inference
 #SBATCH --nodes=1
 #SBATCH --gpus=8                  
-#SBATCH -w soketlab-node003       
+#SBATCH -w soketlab-node004       
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=tts
 #SBATCH --qos=cpu60
@@ -17,11 +17,4 @@ module load nccl
 
 source .agrillm/bin/activate
 
-echo "------------------------------------------------------"
-echo "Job running on node: $(hostname)"
-echo "GPUs allocated: $SLURM_JOB_GPUS"
-echo "------------------------------------------------------"
-
-echo "Running Inference on Gemma-3-27B (Agri)..."
-
-python scripts/inference_agri.py
+python scripts/inference_serve.py

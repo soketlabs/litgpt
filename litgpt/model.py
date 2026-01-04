@@ -561,6 +561,9 @@ class CausalSelfAttention(nn.Module):
                 rope_cache_length + self.config.head_size - self.config.rope_n_elem,
             )
 
+        if k_shape[-1] != v_shape[-1]:
+            k_shape = v_shape
+
         return KVCache(
             k_shape,
             v_shape,

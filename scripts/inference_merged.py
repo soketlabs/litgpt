@@ -37,15 +37,14 @@ def run_inference():
     seed_everything(42)
 
     # --- PATHS ---
-    base_dir = Path("/projects/data/teams/tts_team/agri_training/checkpoints/google/gemma-3-27b-it/google/gemma-3-27b-it")
-    adapter_dir = Path("/projects/data/teams/tts_team/agri_training/test_16000_out_dir_8_1_three_combined_dataset_gemma/step-004800")
-    adapter_file = adapter_dir / "lit_model.pth.lora"
+    merged_checkpoint_dir = Path("/projects/data/teams/tts_team/agri_training/test_16000_out_dir_8_1_three_combined_dataset_gemma/step-004800")
+    merged_model_file = merged_checkpoint_dir / "lit_model.pth"
 
-    print(f"--- Agri-Expert Inference (Forced Reasoning)---")
+    print(f"--- Agri-Expert Inference (Merged Model) ---")
     
     # --- STEP 1: CONFIG ---
     print("Loading Config...")
-    config = Config.from_file(base_dir / "model_config.yaml")
+    config = Config.from_file(merged_checkpoint_dir / "model_config.yaml")
 
     # --- STEP 2: BUILD MODEL ---
     print("Building Model...")
@@ -53,13 +52,10 @@ def run_inference():
         model = GPT(config)
     model = model.to(dtype=torch.bfloat16).to_empty(device="cuda")
 
-    # --- STEP 3: LOAD WEIGHTS ---
-    print("Loading Weights...")
-    base_checkpoint = lazy_load(base_dir / "lit_model.pth")
-    model.load_state_dict(base_checkpoint, strict=False)
-    adapter_checkpoint = lazy_load(adapter_file)
-    adapter_checkpoint = adapter_checkpoint.get("model", adapter_checkpoint)
-    model.load_state_dict(adapter_checkpoint, strict=False)
+    # --- STEP 3: LOAD MERGED WEIGHTS ---
+    print("Loading Merged Weights...")
+    merged_checkpoint = lazy_load(merged_model_file)
+    model.load_state_dict(merged_checkpoint, strict=False)
     model.eval()
 
     # --- KV CACHE ---
@@ -82,7 +78,7 @@ def run_inference():
                      block.attn.adapter_kv_cache = (c[0].to(device), c[1].to(device))
 
     # --- STEP 4: TOKENIZER ---
-    tokenizer = Tokenizer(base_dir)
+    tokenizer = Tokenizer(merged_checkpoint_dir)
 
     # --- STEP 5: PROMPT WITH FORCED REASONING ---
     system_prompt = textwrap.dedent("""
@@ -218,4 +214,3 @@ def run_inference():
 
 if __name__ == "__main__":
     run_inference()
-    
