@@ -104,7 +104,7 @@ print("Sending request to LitGPT Server...")
 
 # 3. SEND REQUEST
 response = client.chat.completions.create(
-    model="agri-gemma-27b", # Name doesn't matter for local LitGPT, but required
+    model="agri-gemma-27b", 
     messages=[
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_message_content}

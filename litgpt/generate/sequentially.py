@@ -62,8 +62,17 @@ def sequential(model: GPT, root: torch.device, max_seq_length: int, devices: int
             # in case the checkpoint was partial, materialize leftover metas
             _materialize_meta_tensors(submodule, target_device)
             # and build the kv cache
+            # Compute rope_cache_length correctly for models with rope_local_base_freq
+            if len(model.cos.shape) == 2:
+                rope_cache_length = model.cos.size(-1)
+            elif len(model.cos.shape) == 3:
+                # For models with rope_local_base_freq, cos has shape (seq_len, n_elem, 2)
+                rope_cache_length = model.cos.size(1)  # Get n_elem dimension
+            else:
+                rope_cache_length = model.cos.size(-1)
+
             submodule.attn.kv_cache = submodule.attn.build_kv_cache(
-                1, max_seq_length, model.cos.size(-1), target_device
+                1, max_seq_length, rope_cache_length, target_device
             )
     # rebuild odd ends
     with root:

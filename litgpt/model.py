@@ -235,6 +235,9 @@ class GPT(nn.Module):
                 rope_cache_length = self.cos.size(-1)
             else:
                 rope_cache_length = self.cos[..., 0].size(-1)
+        
+        if rope_cache_length < self.config.rope_n_elem:
+            rope_cache_length = self.config.rope_n_elem
 
         if max_seq_length is None:
             max_seq_length = self.max_seq_length
@@ -560,9 +563,6 @@ class CausalSelfAttention(nn.Module):
                 effective_cache_size,
                 rope_cache_length + self.config.head_size - self.config.rope_n_elem,
             )
-
-        if k_shape[-1] != v_shape[-1]:
-            k_shape = v_shape
 
         return KVCache(
             k_shape,
