@@ -12,10 +12,9 @@ from safetensors.torch import save_file
 from safetensors import safe_open
 
 # ============= CONFIGURATION =============
-LITGPT_LORA_CHECKPOINT = Path("/projects/data/teams/tts_team/agri_training/finetuned_checkpoints_parquet/gemma3-27b-it-lora-2700/step-005625/lora_2700/step-001875")
-BASE_MODEL_DIR = Path("/projects/data/teams/tts_team/agri_training/finetuned_checkpoints_parquet/gemma3-27b-it-lora-2700/step-005625")
+LITGPT_LORA_CHECKPOINT = Path("/projects/data/teams/tts_team/agri_training/test_16000_out_dir_8_1_three_dataset/step-005600/")
 HF_REFERENCE_MODEL = Path("/home/aditya.borate/litgpt/Gemma-3-27b-it")
-OUTPUT_DIR = Path("/home/aditya.borate/litgpt/checkpoints/gemma3-27b-it-finetuned-hf")
+OUTPUT_DIR = Path("/home/aditya.borate/litgpt/checkpoints/old-ckpt")
 
 # LitGPT config
 LITGPT_VOCAB_SIZE = 262144
@@ -41,12 +40,10 @@ def merge_lora_with_litgpt():
     from litgpt.scripts.merge_lora import merge_lora
     
     print(f"Merging LoRA weights from: {LITGPT_LORA_CHECKPOINT}")
-    print(f"Using base model from: {BASE_MODEL_DIR}")
     
     # Call LitGPT's merge function
     merge_lora(
         checkpoint_dir=LITGPT_LORA_CHECKPOINT,
-        pretrained_checkpoint_dir=BASE_MODEL_DIR,
         precision="bf16-true"
     )
     
@@ -351,7 +348,6 @@ def main():
     print("LITGPT TO HUGGINGFACE CONVERSION FOR GEMMA-3-27B-IT")
     print("=" * 80)
     print(f"\nInput LitGPT checkpoint: {LITGPT_LORA_CHECKPOINT}")
-    print(f"Base model: {BASE_MODEL_DIR}")
     print(f"HF reference model: {HF_REFERENCE_MODEL}")
     print(f"Output directory: {OUTPUT_DIR}")
     
