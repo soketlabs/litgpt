@@ -1,0 +1,32 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --gres=gpu:8
+#SBATCH --ntasks-per-node=8
+#SBATCH --cpus-per-task=8
+#SBATCH --partition=tts
+#SBATCH --qos=cpu60
+#SBATCH --nodelist=soketlab-node038
+#SBATCH --time=4-00:00:00
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
+
+
+
+module load gcc
+module load cuda
+module load nccl
+module load python/3.10
+
+
+
+
+# export TORCH_NCCL_AVOID_RECORD_STREAMS=1
+# export NCCL_NVLS_ENABLE=0s
+# export NVTE_DP_AMAX_REDUCE_INTERVAL=0
+# export NVTE_ASYNC_AMAX_REDUCTION=1
+# export CUDA_DEVICE_MAX_CONNECTIONS=1
+# export NCCL_ALGO= "Tree"
+# export NCCL_DEBUG=INFO
+
+srun litgpt pretrain  --config config_hub/pretrain/paquet.yaml
+ 
