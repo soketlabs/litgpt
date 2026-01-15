@@ -12,9 +12,10 @@ from safetensors.torch import save_file
 from safetensors import safe_open
 
 # ============= CONFIGURATION =============
-LITGPT_LORA_CHECKPOINT = Path("/projects/data/teams/tts_team/agri_training/test_16000_out_dir_8_1_three_dataset/step-005600/")
+LITGPT_LORA_CHECKPOINT = Path("/projects/data/teams/tts_team/agri_training/finetuned_checkpoints_parquet/gemma3-27b-it-lora-2700/step-005625/lora_2700_2ndCrash/step-008375/")
+BASE_MODEL_DIR = Path("/projects/data/teams/tts_team/agri_training/checkpoints/google/gemma-3-27b-it/google/gemma-3-27b-it")
 HF_REFERENCE_MODEL = Path("/home/aditya.borate/litgpt/Gemma-3-27b-it")
-OUTPUT_DIR = Path("/home/aditya.borate/litgpt/checkpoints/old-ckpt")
+OUTPUT_DIR = Path("/home/aditya.borate/litgpt/checkpoints/step-008375-correct-merged")
 
 # LitGPT config
 LITGPT_VOCAB_SIZE = 262144
@@ -44,6 +45,7 @@ def merge_lora_with_litgpt():
     # Call LitGPT's merge function
     merge_lora(
         checkpoint_dir=LITGPT_LORA_CHECKPOINT,
+        pretrained_checkpoint_dir=BASE_MODEL_DIR,
         precision="bf16-true"
     )
     

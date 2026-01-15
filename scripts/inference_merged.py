@@ -9,7 +9,7 @@ from pathlib import Path
 from litgpt.tokenizer import Tokenizer
 from litgpt.utils import lazy_load
 from litgpt.generate.base import generate
-from litgpt.lora import GPT, Config
+from litgpt.model import GPT, Config
 
 torch.set_float32_matmul_precision('high')
 
@@ -34,18 +34,16 @@ INPUT_DATA = {
 
 def run_inference():
     # SET FIXED SEED
-    seed_everything(42)
+    seed_everything(9)
 
-    # --- PATHS ---
-    base_dir = Path("/projects/data/teams/tts_team/agri_training/checkpoints/google/gemma-3-27b-it/google/gemma-3-27b-it")
-    adapter_dir = Path("/projects/data/teams/tts_team/agri_training/finetuned_checkpoints_parquet/gemma3-27b-it-lora-2700/step-005625/lora_2700_2ndCrash/step-008375/")
-    adapter_file = adapter_dir / "lit_model.pth.lora"
+    # --- PATH TO MERGED CHECKPOINT ---
+    checkpoint_dir = Path("/projects/data/teams/tts_team/agri_training/finetuned_checkpoints_parquet/gemma3-27b-it-lora-2700/step-005625/lora_2700_2ndCrash/step-008375/")
 
-    print(f"--- Agri-Model Inference ---")
+    print(f"--- Agri-Expert Inference (Merged Checkpoint) ---")
     
     # --- STEP 1: CONFIG ---
     print("Loading Config...")
-    config = Config.from_file(base_dir / "model_config.yaml")
+    config = Config.from_file(checkpoint_dir / "model_config.yaml")
 
     # --- STEP 2: BUILD MODEL ---
     print("Building Model...")
@@ -55,11 +53,8 @@ def run_inference():
 
     # --- STEP 3: LOAD WEIGHTS ---
     print("Loading Weights...")
-    base_checkpoint = lazy_load(base_dir / "lit_model.pth")
-    model.load_state_dict(base_checkpoint, strict=False)
-    adapter_checkpoint = lazy_load(adapter_file)
-    adapter_checkpoint = adapter_checkpoint.get("model", adapter_checkpoint)
-    model.load_state_dict(adapter_checkpoint, strict=False)
+    checkpoint = lazy_load(checkpoint_dir / "lit_model.pth")
+    model.load_state_dict(checkpoint, strict=True)
     model.eval()
 
     # --- KV CACHE ---
@@ -76,13 +71,9 @@ def run_inference():
                 kvc = block.attn.kv_cache
                 if hasattr(kvc, 'k'): kvc.k = kvc.k.to(device)
                 if hasattr(kvc, 'v'): kvc.v = kvc.v.to(device)
-            if hasattr(block.attn, 'adapter_kv_cache') and block.attn.adapter_kv_cache is not None:
-                 c = block.attn.adapter_kv_cache
-                 if isinstance(c, tuple):
-                     block.attn.adapter_kv_cache = (c[0].to(device), c[1].to(device))
 
     # --- STEP 4: TOKENIZER ---
-    tokenizer = Tokenizer(base_dir)
+    tokenizer = Tokenizer(checkpoint_dir)
 
     # --- STEP 5: PROMPT WITH FORCED REASONING ---
     system_prompt = textwrap.dedent("""
@@ -218,4 +209,3 @@ def run_inference():
 
 if __name__ == "__main__":
     run_inference()
-    

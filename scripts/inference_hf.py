@@ -8,7 +8,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 torch.set_float32_matmul_precision('high')
 
 # Path to converted HuggingFace model
-MODEL_PATH = "/home/aditya.borate/litgpt/checkpoints/gemma3-27b-it-finetuned-hf"
+MODEL_PATH = "checkpoints/step-008375-lmhead-fix"
 
 # --- DETERMINISM SETUP ---
 def seed_everything(seed):
@@ -176,7 +176,7 @@ def run_inference():
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_PATH,
-        torch_dtype=torch.bfloat16,
+        dtype=torch.bfloat16,
         device_map="auto",
         trust_remote_code=True
     )
@@ -223,7 +223,8 @@ def run_inference():
     generated_token_count = len(generated_tokens)
     tokens_per_sec = generated_token_count / generation_time if generation_time > 0 else 0
     
-    full_output = "<unused0>" + tokenizer.decode(generated_tokens, skip_special_tokens=False)
+    # full_output = tokenizer.decode(generated_tokens, skip_special_tokens=False) # for raw
+    full_output = "<unused0>" + tokenizer.decode(generated_tokens, skip_special_tokens=False) # for primed
     
     # --- DISPLAY RESULTS ---
     print("\n" + "=" * 80)
