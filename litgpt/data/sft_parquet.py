@@ -67,7 +67,7 @@ class ParquetSFTDataModule(DataModule):
     SFT DataModule reading from a local Parquet file.
     """
 
-    parquet_path: str = "/home/sayantan/soket_litgpt/litgpt/data/data_folder/merged_all.parquet"
+    parquet_path: str = "/projects/data/teams/tts_team/agri_training/data_folder/merged_all.parquet"
 
     mask_prompt: bool = False
     val_split_fraction: float = 0.1

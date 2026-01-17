@@ -7,7 +7,7 @@ LOCAL_MODEL_DIR = Path(
 )
 
 
-REPO_ID = "SayantanJoker/agri_model_8375_v2"
+REPO_ID = "SayantanJoker/agri_model_8375"
 
 PRIVATE = False  
 

@@ -238,12 +238,49 @@ def copy_weights_gemma_3(
         "transformer.h.{}.attn.norm_k.weight": "model.layers.{}.self_attn.k_norm.weight",
 
     }
+    # vision_weight_map = {
+    #     # Vision embeddings
+    #     "vision_tower.vision_model.embeddings.patch_embedding.weight": "vision_tower.vision_model.embeddings.patch_embedding.weight",
+    #     "vision_tower.vision_model.embeddings.patch_embedding.bias": "vision_tower.vision_model.embeddings.patch_embedding.bias",
+    #     "vision_tower.vision_model.embeddings.position_embedding.weight": "vision_tower.vision_model.embeddings.position_embedding.weight",
+        
+    #     # Vision encoder layers (all 27 layers: 0-26)
+    #     "vision_tower.vision_model.encoder.layers.{}.layer_norm1.weight": "vision_tower.vision_model.encoder.layers.{}.layer_norm1.weight",
+    #     "vision_tower.vision_model.encoder.layers.{}.layer_norm1.bias": "vision_tower.vision_model.encoder.layers.{}.layer_norm1.bias",
+    #     "vision_tower.vision_model.encoder.layers.{}.layer_norm2.weight": "vision_tower.vision_model.encoder.layers.{}.layer_norm2.weight",
+    #     "vision_tower.vision_model.encoder.layers.{}.layer_norm2.bias": "vision_tower.vision_model.encoder.layers.{}.layer_norm2.bias",
+    #     "vision_tower.vision_model.encoder.layers.{}.mlp.fc1.weight": "vision_tower.vision_model.encoder.layers.{}.mlp.fc1.weight",
+    #     "vision_tower.vision_model.encoder.layers.{}.mlp.fc1.bias": "vision_tower.vision_model.encoder.layers.{}.mlp.fc1.bias",
+    #     "vision_tower.vision_model.encoder.layers.{}.mlp.fc2.weight": "vision_tower.vision_model.encoder.layers.{}.mlp.fc2.weight",
+    #     "vision_tower.vision_model.encoder.layers.{}.mlp.fc2.bias": "vision_tower.vision_model.encoder.layers.{}.mlp.fc2.bias",
+    #     "vision_tower.vision_model.encoder.layers.{}.self_attn.q_proj.weight": "vision_tower.vision_model.encoder.layers.{}.self_attn.q_proj.weight",
+    #     "vision_tower.vision_model.encoder.layers.{}.self_attn.q_proj.bias": "vision_tower.vision_model.encoder.layers.{}.self_attn.q_proj.bias",
+    #     "vision_tower.vision_model.encoder.layers.{}.self_attn.k_proj.weight": "vision_tower.vision_model.encoder.layers.{}.self_attn.k_proj.weight",
+    #     "vision_tower.vision_model.encoder.layers.{}.self_attn.k_proj.bias": "vision_tower.vision_model.encoder.layers.{}.self_attn.k_proj.bias",
+    #     "vision_tower.vision_model.encoder.layers.{}.self_attn.v_proj.weight": "vision_tower.vision_model.encoder.layers.{}.self_attn.v_proj.weight",
+    #     "vision_tower.vision_model.encoder.layers.{}.self_attn.v_proj.bias": "vision_tower.vision_model.encoder.layers.{}.self_attn.v_proj.bias",
+    #     "vision_tower.vision_model.encoder.layers.{}.self_attn.out_proj.weight": "vision_tower.vision_model.encoder.layers.{}.self_attn.out_proj.weight",
+    #     "vision_tower.vision_model.encoder.layers.{}.self_attn.out_proj.bias": "vision_tower.vision_model.encoder.layers.{}.self_attn.out_proj.bias",
+        
+    #     # Vision post layer norm
+    #     "vision_tower.vision_model.post_layernorm.weight": "vision_tower.vision_model.post_layernorm.weight",
+    #     "vision_tower.vision_model.post_layernorm.bias": "vision_tower.vision_model.post_layernorm.bias",
+        
+    #     # Multi-modal projector
+    #     "multi_modal_projector.mm_input_projection_weight": "multi_modal_projector.mm_input_projection_weight",
+    #     "multi_modal_projector.mm_soft_emb_norm.weight": "multi_modal_projector.mm_soft_emb_norm.weight",
+    # }
 
     for from_name, param in lit_weights.items():
         if from_name == "lm_head.weight" and untie_weights:
             continue
         name_template, *ids = layer_template(from_name, num_matches=2)
         param = load_param(param, from_name, None)
+        
+        if from_name == 'transformer.wte.weight' or from_name == 'lm_head.weight':
+            param = torch.cat([param, torch.zeros(64, param.size(1), dtype=param.dtype, device=param.device)], dim=0)
+            print(f'Extended {from_name} weight to {param.size()}')
+        
         if from_name.endswith(".attn.qkv.weight"):
             to_names = (
                 "model.layers.{}.self_attn.q_proj.weight".format(*ids),
@@ -260,6 +297,8 @@ def copy_weights_gemma_3(
         else:
             to_names = (weight_map[name_template].format(*ids),)
             params = (param,)
+            
+        
 
         for to_name, param in zip(to_names, params):
             if saver is not None:

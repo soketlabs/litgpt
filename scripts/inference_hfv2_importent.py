@@ -3,11 +3,10 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, TextStreamer
 
-MODEL_ID = "SayantanJoker/saarthi-v1"
+MODEL_ID = "SayantanJoker/saarthi-v1-untie"
 
 
 def main():
-    
     print("\n================ LOADING MODEL ================\n")
 
     # -------------------------
@@ -24,13 +23,13 @@ def main():
         torch_dtype=torch.bfloat16,
         device_map="auto",
         trust_remote_code=True,
-        tie_word_embeddings=True
+        # tie_word_embeddings=True
     )
     model.eval()
 
     # Manually tie weights if they are not tied (Gemma3 specific)
-    print("Manually tying lm_head weights to embed_tokens...")
-    model.lm_head.weight = model.model.language_model.embed_tokens.weight
+    #print("Manually tying lm_head weights to embed_tokens...")
+    # model.lm_head.weight = model.model.language_model.embed_tokens.weight
 
     print("✅ Model loaded successfully\n")
 
