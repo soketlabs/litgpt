@@ -124,54 +124,98 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, TextStreamer
 
 MODEL_ID = "soketlabs/saarthi-agri-v1"
+OUTPUT_FILE = "model_output.txt"
 
 # -------------------------
 # Structured Input Data
 # -------------------------
-INPUT_DATA = {
-    "Month": "January",
-    "Growth Stage": "फूल आना",
-    "Weather": "गरम और आर्द्र मौसम",
-    "Rainfall_mm": 42,          # numeric (mm)
-    "Humidity_percent": 78,  
-    "Pressure_hPa": 1018,  # numeric (%)
-    "Soil Type": "काली मिट्टी",
-    "Farming Practice": "सामान्य खेती",
-    "Region": "महाराष्ट्र",
-    "Language": "Hindi",
-    "Crop": "कपास",
-    "Stress": "सफेद मक्खी",
-}
 
+############### working data for hindi cotton case ###############
 # INPUT_DATA = {
-#     "Month": "February",
-#     "Growth Stage": "फल बनना",
-#     "Weather": "हल्का गर्म और शुष्क मौसम",
-#     "Rainfall_mm": 18,          
-#     "Humidity_percent": 52,  
-#     "Pressure_hPa": 1012,  
-#     "Soil Type": "लाल दोमट मिट्टी",
-#     "Farming Practice": "ड्रिप सिंचाई",
-#     "Region": "कर्नाटक",
+#     "Month": "January",
+#     "Growth Stage": "फूल आना",
+#     "Weather": "गरम और आर्द्र मौसम",
+#     "Soil Type": "काली मिट्टी",
+#     "Farming Practice": "सामान्य खेती",
+#     "Region": "महाराष्ट्र",
 #     "Language": "Hindi",
-#     "Crop": "टमाटर",
-#     "Stress": "फलों में फटने की समस्या",
+#     "Crop": "कपास",
+#     "Stress": "सफेद मक्खी",
 # }
 
+
+############### working data for hindi wheat case ###############
 # INPUT_DATA = {
 #     "Month": "February",
-#     "Growth Stage": "Flowering Stage",
-#     "Weather": "Mild warm and dry weather",
-#     "Rainfall_mm": 18,
-#     "Humidity_percent": 52,
-#     "Pressure_hPa": 1012,
-#     "Soil Type": "Red loam soil",
-#     "Farming Practice": "Drip irrigation",
-#     "Region": "Karnataka",
-#     "Language": "English",
-#     "Crop": "Tomato",
-#     "Stress": "Fruit cracking problem"
+#     "Growth Stage": "बाल निकलना",
+#     "Weather": "ठंडी रात और हल्की नमी",
+#     "Soil Type": "दोमट मिट्टी",
+#     "Farming Practice": "सामान्य खेती",
+#     "Region": "उत्तर प्रदेश",
+#     "Language": "Hindi",
+#     "Crop": "गेहूं",
+#     "Stress": "पीला रतुआ रोग",
 # }
+
+
+############### working data for hindi chickpea case ###############    
+# INPUT_DATA = {
+# "Month": "March",
+# "Growth Stage": "पुष्पन",
+# "Weather": "सुबह ठंड और धूप",
+# "Soil Type": "बलुई दोमट मिट्टी",
+# "Farming Practice": "जैविक खेती",
+# "Region": "मध्य प्रदेश",
+# "Language": "Hindi",
+# "Crop": "चना",
+# "Stress": "कीट संक्रमण"
+# }
+
+
+#################### working data for hindi rice case ###############   
+# INPUT_DATA = {
+# "Month": "May",
+# "Growth Stage": "पकना",
+# "Weather": "तेज धूप और गर्मी",
+# "Soil Type": "लाल मिट्टी",
+# "Farming Practice": "समेकित कृषि",
+# "Region": "छत्तीसगढ़",
+# "Language": "Hindi",
+# "Crop": "धान (नर्सरी)",
+# "Stress": "खैरा रोग"
+# }
+
+
+
+
+
+
+################ working data for hindi soybean case ###############
+# INPUT_DATA = {
+# "Month": "September",
+# "Growth Stage": "दूधिया अवस्था",
+# "Weather": "बादल छाए रहना",
+# "Soil Type": "कंकरीली मिट्टी",
+# "Farming Practice": "बारानी खेती",
+# "Region": "महाराष्ट्र",
+# "Language": "Hindi",
+# "Crop": "सोयाबीन",
+# "Stress": "पीला मोज़ेक वायरस"
+# }
+
+
+############### working data for hindi barley case ###############
+INPUT_DATA = {
+"Month": "December",
+"Growth Stage": "कटाई तैयार",
+"Weather": "ठंड और सूखा",
+"Soil Type": "पथरीली मिट्टी",
+"Farming Practice": "संरक्षण खेती",
+"Region": "हिमाचल प्रदेश",
+"Language": "Hindi",
+"Crop": "चना",
+"Stress": "पाउडरी मिल्ड्यू"
+}
 
 
 
@@ -201,9 +245,6 @@ def main():
         f"Month: {INPUT_DATA['Month']}\n"
         f"Growth Stage: {INPUT_DATA['Growth Stage']}\n"
         f"Weather: {INPUT_DATA['Weather']}\n"
-        f"Rainfall: {INPUT_DATA['Rainfall_mm']} mm\n"
-        f"Humidity: {INPUT_DATA['Humidity_percent']} %\n"
-        f"Pressure: {INPUT_DATA['Pressure_hPa']} hPa\n"   
         f"Soil Type: {INPUT_DATA['Soil Type']}\n"
         f"Farming Practice: {INPUT_DATA['Farming Practice']}\n"
         f"Region: {INPUT_DATA['Region']}\n"
@@ -222,10 +263,10 @@ Output Order (Mandatory and Strict):
 1. The very first output token must be exactly <unused0>
 2. Immediately after <unused0>, produce a structured analytical reasoning section in English covering:
 - Crop suitability for the given Month and Region, considering the Crop type and Growth Stage
-- Climate assessment using Weather description, Rainfall_mm, Humidity_percent, and Pressure_hPa
-- Soil behavior, soil moisture retention, and irrigation needs based on Soil Type and Rainfall_mm
+- Climate assessment using Weather description
+- Soil behavior, soil moisture retention, and irrigation needs based on Soil Type 
 - Growth-stage-specific agronomic requirements and timing considerations
-- Risk analysis including Stress factors (pests/diseases), humidity-driven disease risk, and weather-related stress
+- Risk analysis including Stress factors (pests/diseases) and weather-related stress
 - Impact of Farming Practice on productivity and risk mitigation
 - Integrated recommendation logic combining all above parameters coherently
 3. After the reasoning is complete, output exactly <unused1>
@@ -281,15 +322,25 @@ Output Restrictions:
     print("\n================ MODEL OUTPUT ================\n")
 
     with torch.no_grad():
-        model.generate(
+        generation_output= model.generate(
             **inputs,
             max_new_tokens=5000,
             do_sample=True,
             temperature=0.8,
             top_p=0.9,
             repetition_penalty=1.1,
+            return_dict_in_generate=True, 
             streamer=streamer
         )
+    
+    generated_tokens = generation_output.sequences[0]
+    decoded_output = tokenizer.decode(
+        generated_tokens,
+        skip_special_tokens=True
+    )
+        
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        f.write(decoded_output)
 
     print("\n\n✅ Inference complete\n")
 

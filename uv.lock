@@ -1793,6 +1793,7 @@ dependencies = [
     { name = "pip" },
     { name = "psutil" },
     { name = "safetensors" },
+    { name = "sse-starlette" },
     { name = "tokenizers" },
     { name = "torch" },
     { name = "tqdm" },
@@ -1864,6 +1865,7 @@ requires-dist = [
     { name = "requests", marker = "extra == 'extra'", specifier = ">=2.31" },
     { name = "safetensors", specifier = ">=0.4.3" },
     { name = "sentencepiece", marker = "extra == 'extra'", specifier = ">=0.2" },
+    { name = "sse-starlette", specifier = ">=3.2.0" },
     { name = "tensorboard", marker = "extra == 'extra'", specifier = ">=2.14" },
     { name = "tokenizers", specifier = ">=0.21" },
     { name = "torch", specifier = ">=2.7" },
@@ -4801,6 +4803,19 @@ name = "sqlitedict"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/12/9a/7620d1e9dcb02839ed6d4b14064e609cdd7a8ae1e47289aa0456796dd9ca/sqlitedict-2.1.0.tar.gz", hash = "sha256:03d9cfb96d602996f1d4c2db2856f1224b96a9c431bdd16e78032a72940f9e8c", size = 21846, upload-time = "2022-12-03T13:39:13.102Z" }
+
+[[package]]
+name = "sse-starlette"
+version = "3.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "starlette" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8b/8d/00d280c03ffd39aaee0e86ec81e2d3b9253036a0f93f51d10503adef0e65/sse_starlette-3.2.0.tar.gz", hash = "sha256:8127594edfb51abe44eac9c49e59b0b01f1039d0c7461c6fd91d4e03b70da422", size = 27253, upload-time = "2026-01-17T13:11:05.62Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/96/7f/832f015020844a8b8f7a9cbc103dd76ba8e3875004c41e08440ea3a2b41a/sse_starlette-3.2.0-py3-none-any.whl", hash = "sha256:5876954bd51920fc2cd51baee47a080eb88a37b5b784e615abb0b283f801cdbf", size = 12763, upload-time = "2026-01-17T13:11:03.775Z" },
+]
 
 [[package]]
 name = "stack-data"
