@@ -1,10 +1,12 @@
 import torch
 import threading
+import asyncio
 import uuid
 import time
-from typing import List, Optional
+import queue as queue_module
+from typing import List, Optional, Dict
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
@@ -13,14 +15,16 @@ from pydantic import BaseModel
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
-    TextIteratorStreamer
+    TextIteratorStreamer,
+    StoppingCriteria,
+    StoppingCriteriaList,
 )
 
 # =========================================================
 # Model Configuration (FROM YOUR SCRIPT)
 # =========================================================
 
-MODEL_ID = "soketlabs/saarthi-agri-v1"
+MODEL_ID = "soketlabs/sarthi-agri-v1"
 
 DTYPE = torch.bfloat16 if torch.cuda.is_available() else torch.float32
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -47,6 +51,24 @@ model = AutoModelForCausalLM.from_pretrained(
 model.eval()
 
 print("✅ Model loaded successfully\n")
+
+# =========================================================
+# Cancellation Support
+# =========================================================
+
+# Maps request_id -> threading.Event; set the event to cancel generation.
+active_generations: Dict[str, threading.Event] = {}
+
+
+class StopOnEvent(StoppingCriteria):
+    """Custom stopping criteria that halts model.generate() when the event is set."""
+
+    def __init__(self, stop_event: threading.Event):
+        self.stop_event = stop_event
+
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+        return self.stop_event.is_set()
+
 
 # =========================================================
 # FastAPI App
@@ -109,27 +131,8 @@ def build_prompt(messages: List[ChatMessage]) -> str:
 
 
 # =========================================================
-# Streaming Generator
+# (streaming is now handled inline in the endpoint)
 # =========================================================
-
-def token_streamer(prompt: str, gen_args: dict):
-    streamer = TextIteratorStreamer(
-        tokenizer,
-        skip_prompt=True,
-        skip_special_tokens=True
-    )
-
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-
-    gen_args["input_ids"] = inputs["input_ids"]
-    gen_args["attention_mask"] = inputs["attention_mask"]
-    gen_args["streamer"] = streamer
-
-    thread = threading.Thread(target=model.generate, kwargs=gen_args)
-    thread.start()
-
-    for token in streamer:
-        yield token
         
         
 
@@ -163,7 +166,7 @@ def token_streamer(prompt: str, gen_args: dict):
 # =========================================================
 
 @app.post("/v1/chat/completions")
-async def chat_completions(req: ChatCompletionRequest):
+async def chat_completions(req: ChatCompletionRequest, request: Request):
 
     prompt = build_prompt(req.messages)
 
@@ -180,84 +183,171 @@ async def chat_completions(req: ChatCompletionRequest):
     created_ts = int(time.time())
 
     # -----------------------------------------------------
-    # STREAMING MODE
+    # STREAMING MODE  (with cancellation support)
     # -----------------------------------------------------
     if req.stream:
+        stop_event = threading.Event()
+        active_generations[request_id] = stop_event
 
         async def event_generator():
+            # Set up streamer + generation thread
+            streamer = TextIteratorStreamer(
+                tokenizer, skip_prompt=True, skip_special_tokens=True
+            )
+
+            inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+
+            gen_args = dict(generation_args)
+            gen_args["input_ids"] = inputs["input_ids"]
+            gen_args["attention_mask"] = inputs["attention_mask"]
+            gen_args["streamer"] = streamer
+            gen_args["stopping_criteria"] = StoppingCriteriaList(
+                [StopOnEvent(stop_event)]
+            )
+
+            thread = threading.Thread(target=model.generate, kwargs=gen_args)
+            thread.start()
+
+            loop = asyncio.get_event_loop()
+
             try:
-                for token in token_streamer(prompt, generation_args):
+                while True:
+                    # --- check if the client has gone away ---
+                    if await request.is_disconnected():
+                        print(f"[cancel] Client disconnected: {request_id}")
+                        stop_event.set()
+                        break
+
+                    # --- non-blocking read from the streamer queue ---
+                    try:
+                        token = await loop.run_in_executor(
+                            None,
+                            lambda: streamer.text_queue.get(timeout=0.5),
+                        )
+                    except queue_module.Empty:
+                        # No token yet; loop back and re-check disconnect
+                        continue
+
+                    # End-of-stream sentinel
+                    if token is streamer.stop_signal:
+                        break
+
+                    if stop_event.is_set():
+                        break
+
                     print(f"the token is {token} ")
                     chunk = {
-                            "id": request_id,
-                            "object": "chat.completion.chunk",
-                            "created": created_ts,
-                            "model": MODEL_ID,
-                            "choices": [
-                                {
-                                    "delta": {"content": token},
-                                    "index": 0,
-                                    "finish_reason": None,
-                                }
-                            ],
-                        }
-                    yield {
-                          "event": "data",
-                        "data": chunk
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": created_ts,
+                        "model": MODEL_ID,
+                        "choices": [
+                            {
+                                "delta": {"content": token},
+                                "index": 0,
+                                "finish_reason": None,
+                            }
+                        ],
                     }
+                    yield {"event": "data", "data": chunk}
 
-                # End marker
-                yield {
-                    "event": "data",
-                    "data": "[DONE]"
-                }
+                # Send [DONE] only if we weren't cancelled
+                if not stop_event.is_set():
+                    yield {"event": "data", "data": "[DONE]"}
+
+            except asyncio.CancelledError:
+                print(f"[cancel] Async cancelled: {request_id}")
+                stop_event.set()
 
             except Exception as e:
-                yield {
-                    "event": "data",
-                    "data": f"ERROR: {str(e)}"
-                }
+                yield {"event": "data", "data": f"ERROR: {str(e)}"}
+
+            finally:
+                # Always ensure the generation thread is stopped & cleaned up
+                stop_event.set()
+                active_generations.pop(request_id, None)
+                thread.join(timeout=10)
+                print(f"[cleanup] Generation thread done: {request_id}")
 
         return EventSourceResponse(event_generator())
 
     # -----------------------------------------------------
-    # NON-STREAMING MODE
+    # NON-STREAMING MODE  (with cancellation support)
     # -----------------------------------------------------
-    print(f"the prompt is {prompt} ")
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    stop_event = threading.Event()
+    active_generations[request_id] = stop_event
 
-    with torch.no_grad():
-        output = model.generate(
-            **inputs,
-            **generation_args
+    try:
+        print(f"the prompt is {prompt} ")
+        inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+        generation_args["stopping_criteria"] = StoppingCriteriaList(
+            [StopOnEvent(stop_event)]
         )
-        
-    
 
-    generated_tokens = output.sequences[0]
-    decoded_output = tokenizer.decode(
-        generated_tokens,
-        skip_special_tokens=True
-    )
+        # Run generation in a thread so the event loop stays responsive
+        def _generate():
+            with torch.no_grad():
+                return model.generate(**inputs, **generation_args)
 
-    response = {
-        "id": request_id,
-        "object": "chat.completion",
-        "created": created_ts,
-        "model": MODEL_ID,
-        "choices": [
-            {
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": decoded_output
-                },
-                "finish_reason": "stop",
-            }
-        ],
-    }
+        output = await asyncio.get_event_loop().run_in_executor(None, _generate)
 
-    return JSONResponse(response)
+        # If the client disconnected while we were generating, bail out
+        if await request.is_disconnected():
+            return JSONResponse(
+                {"error": "Client disconnected"}, status_code=499
+            )
+
+        generated_tokens = output.sequences[0]
+        decoded_output = tokenizer.decode(
+            generated_tokens, skip_special_tokens=True
+        )
+
+        finish = "stop" if not stop_event.is_set() else "cancelled"
+        response = {
+            "id": request_id,
+            "object": "chat.completion",
+            "created": created_ts,
+            "model": MODEL_ID,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": decoded_output,
+                    },
+                    "finish_reason": finish,
+                }
+            ],
+        }
+        return JSONResponse(response)
+
+    finally:
+        active_generations.pop(request_id, None)
+
+
+# =========================================================
+# Explicit Cancel Endpoint
+# =========================================================
+
+
+class CancelRequest(BaseModel):
+    request_id: str
+
+
+@app.post("/v1/chat/completions/cancel")
+async def cancel_generation(req: CancelRequest):
+    """
+    Explicitly cancel an in-flight generation by its request_id.
+    The request_id is returned in every streaming chunk's "id" field.
+    """
+    stop_event = active_generations.get(req.request_id)
+    if stop_event is None:
+        return JSONResponse(
+            {"error": "Request not found or already completed"},
+            status_code=404,
+        )
+    stop_event.set()
+    return JSONResponse({"status": "cancelled", "request_id": req.request_id})
 
 
 # =========================================================
